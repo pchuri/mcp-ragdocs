@@ -58,7 +58,7 @@ export class ApiClient {
 
     try {
       const response = await this.openaiClient.embeddings.create({
-        model: 'text-embedding-ada-002',
+        model: 'text-embedding-3-small',
         input: text,
       });
       return response.data[0].embedding;
@@ -78,7 +78,7 @@ export class ApiClient {
       if (!exists) {
         await this.qdrantClient.createCollection(COLLECTION_NAME, {
           vectors: {
-            size: 1536, // OpenAI ada-002 embedding size
+            size: 1536, // OpenAI text-embedding-3-small embedding size
             distance: 'Cosine',
           },
           // Add optimized settings for cloud deployment
