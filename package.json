@@ -42,6 +42,7 @@
   "dependencies": {
     "@azure/openai": "2.0.0",
     "@modelcontextprotocol/sdk": "1.0.3",
+    "@opensearch-project/opensearch": "^3.5.1",
     "@qdrant/js-client-rest": "1.12.0",
     "axios": "1.7.9",
     "cheerio": "1.0.0",

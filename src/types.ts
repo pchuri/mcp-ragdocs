@@ -39,3 +39,22 @@ export interface McpToolResponse {
   }>;
   isError?: boolean;
 }
+
+export interface SearchResult {
+  id: string | number;
+  payload: DocumentPayload | null;
+  score: number;
+  // Potentially other fields from Qdrant like 'version', 'shard_key', etc.
+  // Keeping it simple based on current usage.
+}
+
+export interface ISearchClient {
+  search(
+    collectionName: string,
+    queryEmbedding: number[],
+    limit: number,
+    options?: Record<string, any> // For parameters like with_payload, with_vector, score_threshold etc.
+  ): Promise<SearchResult[]>;
+
+  initCollection(collectionName: string): Promise<void>;
+}

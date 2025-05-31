@@ -56,9 +56,42 @@ The RAG Documentation tool is designed for:
 
 ## Configuration
 
+To run this MCP server, you'll need to configure the following environment variables:
+
+- `OPENAI_API_KEY`: Your OpenAI API key, used for generating embeddings for the text.
+
+### Search Backend Configuration
+
+The system can use different vector databases as a search backend. You can select the desired backend and configure its connection details using the following environment variables:
+
+-   `SEARCH_CLIENT_TYPE`: Specifies the search client to use.
+    -   Set to `'qdrant'` to use Qdrant.
+    -   Set to `'opensearch'` to use OpenSearch.
+    -   If not set or invalid, it defaults to `'qdrant'`.
+
+-   `DEFAULT_COLLECTION_NAME`: Specifies the default name for the main collection or index used by the search client.
+    -   Defaults to `'documentation'` if not set. This is the name of the index/collection that will be automatically created or used by the system.
+
+#### Qdrant Configuration
+
+If `SEARCH_CLIENT_TYPE` is set to `'qdrant'` (or if it's defaulting), the following additional variables are required:
+
+-   `QDRANT_URL`: URL of your Qdrant vector database instance (e.g., `http://localhost:6333`).
+-   `QDRANT_API_KEY`: API key for authenticating with Qdrant (if applicable).
+
+#### OpenSearch Configuration
+
+If `SEARCH_CLIENT_TYPE` is set to `'opensearch'`, the following additional variables are required:
+
+-   `OPENSEARCH_NODE`: URL of your OpenSearch node (e.g., `https://localhost:9200`).
+-   `OPENSEARCH_USERNAME`: Username for OpenSearch authentication.
+-   `OPENSEARCH_PASSWORD`: Password for OpenSearch authentication.
+
+**Note:** Ensure that the chosen search backend (Qdrant or OpenSearch) is properly installed, running, and accessible to the application with the correct credentials and network settings. The specified `DEFAULT_COLLECTION_NAME` will be automatically initialized if it doesn't exist when the server starts.
+
 ### Usage with Claude Desktop
 
-Add this to your `claude_desktop_config.json`:
+When configuring the server for use with Claude Desktop (or similar environments), you'll need to pass these environment variables. Here's an example snippet for `claude_desktop_config.json`, assuming you are using Qdrant:
 
 ```json
 {
@@ -70,19 +103,22 @@ Add this to your `claude_desktop_config.json`:
         "@hannesrudolph/mcp-ragdocs"
       ],
       "env": {
-        "OPENAI_API_KEY": "",
-        "QDRANT_URL": "",
-        "QDRANT_API_KEY": ""
+        "OPENAI_API_KEY": "your_openai_key",
+        "SEARCH_CLIENT_TYPE": "qdrant", // or "opensearch"
+        "QDRANT_URL": "your_qdrant_url",
+        "QDRANT_API_KEY": "your_qdrant_api_key",
+        // If using opensearch, replace QDRANT_* with OPENSEARCH_* variables
+        // "OPENSEARCH_NODE": "your_opensearch_node_url",
+        // "OPENSEARCH_USERNAME": "your_opensearch_username",
+        // "OPENSEARCH_PASSWORD": "your_opensearch_password",
+        "DEFAULT_COLLECTION_NAME": "my_docs_collection" // Optional
       }
     }
   }
 }
 ```
 
-You'll need to provide values for the following environment variables:
-- `OPENAI_API_KEY`: Your OpenAI API key for embeddings generation
-- `QDRANT_URL`: URL of your Qdrant vector database instance
-- `QDRANT_API_KEY`: API key for authenticating with Qdrant
+Adjust the `env` block according to your chosen search backend and actual credentials.
 
 ## License
 
