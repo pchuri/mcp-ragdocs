@@ -1,38 +1,92 @@
-import { QdrantClient } from '@qdrant/js-client-rest';
 import OpenAI from 'openai';
 import { chromium } from 'playwright';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import { ISearchClient } from '../types.js';
+import { QdrantSearchClient } from '../search-clients/qdrant-client.js';
+import { OpenSearchClient } from '../search-clients/opensearch-client.js'; // Added import
 
 // Environment variables for configuration
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const QDRANT_URL = process.env.QDRANT_URL;
-const QDRANT_API_KEY = process.env.QDRANT_API_KEY;
-
-if (!QDRANT_URL) {
-  throw new Error('QDRANT_URL environment variable is required for cloud storage');
-}
-
-if (!QDRANT_API_KEY) {
-  throw new Error('QDRANT_API_KEY environment variable is required for cloud storage');
-}
+const SEARCH_CLIENT_TYPE = process.env.SEARCH_CLIENT_TYPE; // New environment variable
+const DEFAULT_COLLECTION_NAME = process.env.DEFAULT_COLLECTION_NAME || 'documentation';
 
 export class ApiClient {
-  qdrantClient: QdrantClient;
   openaiClient?: OpenAI;
   browser: any;
+  searchClient: ISearchClient;
 
   constructor() {
-    // Initialize Qdrant client with cloud configuration
-    this.qdrantClient = new QdrantClient({
-      url: QDRANT_URL,
-      apiKey: QDRANT_API_KEY,
-    });
-
     // Initialize OpenAI client if API key is provided
     if (OPENAI_API_KEY) {
       this.openaiClient = new OpenAI({
         apiKey: OPENAI_API_KEY,
       });
+    }
+
+    // Initialize Search Client based on SEARCH_CLIENT_TYPE
+    try {
+      if (SEARCH_CLIENT_TYPE === 'opensearch') {
+        console.log('Initializing OpenSearchClient...');
+        this.searchClient = new OpenSearchClient();
+      } else if (SEARCH_CLIENT_TYPE === 'qdrant') {
+        console.log('Initializing QdrantSearchClient...');
+        this.searchClient = new QdrantSearchClient();
+      } else {
+        if (SEARCH_CLIENT_TYPE) {
+          console.warn(
+            `Unsupported SEARCH_CLIENT_TYPE: "${SEARCH_CLIENT_TYPE}". Defaulting to Qdrant.`
+          );
+        } else {
+          console.log('SEARCH_CLIENT_TYPE not set. Defaulting to Qdrant.');
+        }
+        this.searchClient = new QdrantSearchClient();
+      }
+
+      // Automatically initialize the default collection for the selected search client
+      // This is an async operation, but constructor cannot be async.
+      // We'll call it and let it run. Errors during this auto-init should be handled within initCollection.
+      this.searchClient.initCollection(DEFAULT_COLLECTION_NAME)
+        .then(() => {
+          console.log(`Default collection "${DEFAULT_COLLECTION_NAME}" initialization process started for ${this.searchClient.constructor.name}.`);
+        })
+        .catch(error => {
+          // Log critical failure of auto-initialization. The app might still run but search will fail.
+          console.error(
+            `CRITICAL: Auto-initialization of default collection "${DEFAULT_COLLECTION_NAME}" failed for ${this.searchClient.constructor.name}:`,
+            error
+          );
+        });
+
+    } catch (error) {
+      console.error("Failed to initialize Search Client:", error);
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to initialize search client: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  // Reinstated initCollection method
+  async initCollection(collectionName: string): Promise<void> {
+    if (!this.searchClient) {
+      throw new McpError(ErrorCode.InternalError, "Search client is not initialized.");
+    }
+    try {
+      await this.searchClient.initCollection(collectionName);
+      console.log(`Collection "${collectionName}" initialized successfully via ApiClient for ${this.searchClient.constructor.name}.`);
+    } catch (error) {
+      console.error(`Failed to initialize collection "${collectionName}" via ApiClient:`, error);
+      // Re-throw as McpError or handle as appropriate
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to initialize collection "${collectionName}": ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -66,46 +120,6 @@ export class ApiClient {
       throw new McpError(
         ErrorCode.InternalError,
         `Failed to generate embeddings: ${error}`
-      );
-    }
-  }
-
-  async initCollection(COLLECTION_NAME: string) {
-    try {
-      const collections = await this.qdrantClient.getCollections();
-      const exists = collections.collections.some(c => c.name === COLLECTION_NAME);
-
-      if (!exists) {
-        await this.qdrantClient.createCollection(COLLECTION_NAME, {
-          vectors: {
-            size: 1536, // OpenAI text-embedding-3-small embedding size
-            distance: 'Cosine',
-          },
-          // Add optimized settings for cloud deployment
-          optimizers_config: {
-            default_segment_number: 2,
-            memmap_threshold: 20000,
-          },
-          replication_factor: 2,
-        });
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('unauthorized')) {
-          throw new McpError(
-            ErrorCode.InvalidRequest,
-            'Failed to authenticate with Qdrant cloud. Please check your API key.'
-          );
-        } else if (error.message.includes('ECONNREFUSED') || error.message.includes('ETIMEDOUT')) {
-          throw new McpError(
-            ErrorCode.InternalError,
-            'Failed to connect to Qdrant cloud. Please check your QDRANT_URL.'
-          );
-        }
-      }
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to initialize Qdrant cloud collection: ${error}`
       );
     }
   }
